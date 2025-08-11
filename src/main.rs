@@ -37,11 +37,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         wrk2_args.push("99999999");
     }
 
-    // 检查是否包含 -U 参数（修复原代码逻辑错误）
+    // 检查是否包含 -U 参数
     let has_u_flag = wrk2_args.iter().any(|&arg| arg == "-U");
     if !has_u_flag {
         wrk2_args.push("-U");
     }
+
+    // 检查是否包含 -v 参数
+    let has_v_flag = wrk2_args.iter().any(|&arg| arg == "-v");
 
     println!("wrk2 {}", wrk2_args.join(" "));
 
@@ -50,7 +53,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .args(&wrk2_args)
         .output()
         .expect("Failed to execute wrk2 command");
-
     if !output.status.success() {
         eprintln!("wrk2 command failed with exit code: {:?}", output.status.code());
         eprintln!("Error output: {}", String::from_utf8_lossy(&output.stderr));
@@ -59,19 +61,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 将输出转换为字符串
     let output_str = String::from_utf8_lossy(&output.stdout);
-    // println!("wrk output ======\n{}", output_str);
+    if has_v_flag {
+        println!("======\n{}", output_str);
+    }
 
     // 解析结果
     let result = parse_wrk2_output(&output_str)?;
     
     // 打印提取的结果
-    println!("Performance Results:");
+    println!("\nPerformance Results:");
     println!("---------------------");
-    println!("Totals      : {}", result.total_requests);
+    println!("Totals      : {}", format_u64_with_commas(result.total_requests));
     println!("Duration    : {}", result.duration);
     println!("Data read   : {}", result.data_read);
-    println!("Requests/sec: {:.2}", result.requests_per_sec);
-    println!("Transfer/sec: {:}", result.transfer_per_sec);
+    println!("Requests/sec: {}", format_u64_with_commas(result.requests_per_sec as u64));
+    println!("Transfer/sec: {}", result.transfer_per_sec);
     println!("\nUncorrected Latency:");
     println!("---------------------");
     for (percentile, latency) in result.uncorrected_latency {
@@ -190,4 +194,27 @@ fn extract_uncorrected_latency(output: &str) -> Result<Vec<(String, String)>, Bo
     }
 
     Ok(results)
+}
+
+fn format_str_with_commas(s: String) -> String {
+    let mut result = String::new();
+    let mut count = 0;
+
+    // 从后往前遍历，每三位添加一个逗号
+    for c in s.chars().rev() {
+        if count != 0 && count % 3 == 0 {
+            result.push(',');
+        }
+        result.push(c);
+        count += 1;
+    }
+
+    // 反转回来得到正确的顺序
+    result.chars().rev().collect()
+}
+
+
+fn format_u64_with_commas(n: u64) -> String {
+    let s = n.to_string();
+    format_str_with_commas(s)
 }
